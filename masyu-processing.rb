@@ -89,12 +89,12 @@ class MasyuProcessing < Processing::App
 
     @grid.set_pillars(@pillars)
 
-    @background = [100, 120, 110, 255]
-    @gridline = [0, 0, 0, 255]
-    @edgeline = [0, 0, 0, 255]
-    @possibleline = [210, 40, 30, 255]
-    @white = [240, 240, 240, 255]
-    @black = [15, 15, 15, 255]
+    @background = [80, 40, 120]
+    @gridline = [0, 0, 0]
+    @edgeline = [0, 0, 0]
+    @possibleline = [210, 40, 30]
+    @white = [240, 240, 240]
+    @black = [15, 15, 15]
 
     @left, @top, @right, @bottom = 0.05, 0.05, 0.95, 0.95
     @unit_col = (@right - @left) / @grid.cols
@@ -106,18 +106,6 @@ class MasyuProcessing < Processing::App
     smooth
     frame_rate 50
     rect_mode RADIUS
-  end
-
-  def within(vf)
-    [vf.first * width, vf.last * height]
-  end
-
-  def withinX(f)
-    f * width
-  end
-
-  def withinY(f)
-    f * height
   end
 
   def draw
@@ -147,6 +135,22 @@ class MasyuProcessing < Processing::App
       @grid.iterate
       @now = Time.now
     end
+  end
+
+  def mouse_pressed
+    @background = [100, 120, 110]
+  end
+
+  def within(vf)
+    [vf.first * width, vf.last * height]
+  end
+
+  def withinX(f)
+    f * width
+  end
+
+  def withinY(f)
+    f * height
   end
 end
 
