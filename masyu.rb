@@ -9,7 +9,7 @@ class MasyuNode
     @grid = grid
     @col = col
     @row = row
-    @edges = {}
+    @edges = {}    # indexed by the node sharing this edge
     @pillar = NoPillar.new(self)
   end
 
@@ -49,11 +49,20 @@ class MasyuNode
   end
 
   def drawn_edges
-    edges.select{|other, edge| edge.drawn?}.map{|other, edge| edge}
+    edges.values.select{|edge| edge.drawn?}
   end
 
   def possible_edges
-    edges.select{|other, edge| edge.possible?}.map{|other, edge| edge}
+    edges.values.select{|edge| edge.possible?}
+  end
+
+  def check_possibilities
+    possible = possible_edges
+    if possible.size == 1
+      possible.first.possible = false
+    end
+
+    pillar.check_possibilities
   end
 
   def draw
@@ -188,6 +197,10 @@ class MasyuPillar
   def console
   end
 
+  def name
+    "pillar"
+  end
+
   def to_s
     console
   end
@@ -216,6 +229,10 @@ class NoPillar < MasyuPillar
       left = possible - drawn
       left.first.draw if left.size == 1
     end
+  end
+
+  def name
+    "no"
   end
 
   def console
@@ -253,6 +270,10 @@ class BlackPillar < MasyuPillar
     end
   end
 
+  def name
+    "black"
+  end
+
   def console
     complete? ? '$' : '@'
   end
@@ -284,19 +305,22 @@ class WhitePillar < MasyuPillar
 
     case drawn.size
       when 0: through?(edge)
-      when 1: through?(edge) and !edge.oppose(drawn.first)
+      when 1: through?(edge) and !edge.opposes?(drawn.first)
       when 2: 
         if edge.continues_from?(node)
-          puts "setting reflection of continuing edge to not possible #{edge.to_s}"
           reflection = edge.reflection(node)
           continue = reflection.continue(node)
-          puts "reflection -- #{reflection.to_s}, continue -- #{continue.to_s}"
+
           reflection = edge.reflection(node).continue(node)
           reflection.possible = false unless reflection.nil?
         end
         edge.drawn? and !drawn.first.opposes?(drawn.last)
       else false
     end
+  end
+
+  def name
+    "white"
   end
 
   def draw
@@ -376,7 +400,7 @@ class MasyuGrid
 
   def check_possibilities
     nodes.flatten.each do |node|
-      node.pillar.check_possibilities
+      node.check_possibilities
     end
   end
 
@@ -390,14 +414,18 @@ class MasyuGrid
     edges.inject(0){|total, edge| total + (edge.drawn? ? 1 : 0)}
   end
 
+  def iterate
+    check_possibilities
+    draw
+  end
+
   def solve
     total = -1
     while total < total_drawn
-      puts console
+      yield self
 
       total = total_drawn
-      check_possibilities
-      draw
+      iterate
     end
   end
 
@@ -424,36 +452,99 @@ class MasyuGrid
   end
 end
 
-def argest
-  grid = MasyuGrid.new(5, 5)
+class MasyuSpec
+  attr_reader :name, :cols, :rows
+  attr_accessor :pillars
 
-  pillars = [[1, 1, WhitePillar],
-             [3, 4, BlackPillar]]
-  grid.set_pillars(pillars)
+  def initialize(name, cols, rows, pillars=[])
+    @cols = cols
+    @rows = rows
+    @pillars = pillars
+  end
 
-  grid.edge_for(grid.node(2,1), grid.node(2,2)).draw
-  grid.edge_for(grid.node(2,3), grid.node(2,2)).draw
-  grid.edge_for(grid.node(1,4), grid.node(2,4)).draw
-  grid.edge_for(grid.node(2,4), grid.node(3,4)).draw
-  grid.edge_for(grid.node(3,2), grid.node(3,3)).draw
-  grid.edge_for(grid.node(3,3), grid.node(3,4)).draw
-  grid.edge_for(grid.node(1,0), grid.node(1,1)).draw
-  grid.edge_for(grid.node(1,1), grid.node(1,2)).draw
-  grid.edge_for(grid.node(1,2), grid.node(0,2)).draw
-  grid.check_possibilities
+  # to do things like:  white(4, 5) etc
+  def method_missing(name, *args, &block)
+    pillar = "#{name.to_s.capitalize}Pillar"
+    if Object.const_defined?(pillar)
+      @pillars << [args[0], args[1], Object.const_get(pillar)]
+    else
+      super(name, *args, &block)
+    end
+  end
+end
 
-  puts grid.console
+class MasyuCollection
+  attr_accessor :name, :specs
+
+  def initialize
+    @specs = {}
+  end
+
+  def method_missing(name, *args, &block)
+    if @specs.has_key?(name)
+      @specs[name]
+    else
+      super(name, *args, &block)
+    end
+  end
+end
+
+class OriginalCollection < MasyuCollection
+  def initialize
+    super
+
+    @badger = MasyuSpec.new('badger', 4, 4)
+    @badger.white(0, 2)
+    @badger.white(2, 0)
+    @badger.black(2, 3)
+    @specs[:badger] = @badger
+
+    @magpie = MasyuSpec.new('magpie', 4, 4)
+    @magpie.white(1, 3)
+    @magpie.black(2, 2)
+    @specs[:magpie] = @magpie
+
+    @lobster = MasyuSpec.new('lobster', 4, 4)
+    @lobster.black(0, 1)
+    @lobster.black(3, 2)
+    @specs[:lobster] = @lobster
+
+    @worm = MasyuSpec.new('worm', 4, 4)
+    @worm.white(0, 1)
+    @worm.white(1, 1)
+    @worm.white(3, 1)
+    @worm.black(0, 3)
+    @specs[:worm] = @worm
+
+    @wolf = MasyuSpec.new('wolf', 4, 4)
+    @wolf.white(1, 1)
+    @wolf.white(1, 2)
+    @wolf.white(2, 1)
+    @wolf.white(3, 2)
+    @specs[:wolf] = @wolf
+
+    @wren = MasyuSpec.new('wren', 4, 6)
+    @wren.white(0, 1)
+    @wren.white(2, 1)
+    @wren.white(1, 2)
+    @wren.white(3, 2)
+    @wren.white(2, 3)
+    @wren.white(0, 4)
+    @wren.black(3, 5)
+    @specs[:wren] = @wren
+  end
 end
 
 def test
-  grid = MasyuGrid.new(4, 4)
-
-  pillars = [[2, 0, BlackPillar], 
-             [0, 2, WhitePillar], 
-             [2, 3, WhitePillar]]
+  spec = OriginalCollection.new.wren
+  grid = MasyuGrid.new(spec.cols, spec.rows)
+  pillars = spec.pillars
   grid.set_pillars(pillars)
 
-  grid.solve
+  grid.solve do |g|
+    puts g.console
+  end
+
   puts grid.console
 end
 
